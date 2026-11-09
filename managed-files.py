@@ -2,21 +2,34 @@
 """Validate portable files and remove only obsolete, previously managed paths."""
 import json
 import shutil
+import stat
 import sys
 from pathlib import Path, PurePosixPath
+
+
+def is_user_database(path):
+    return path.parts[:1] == ('rime',) and any('.userdb' in part for part in path.parts[1:])
 
 
 def scan(root):
     result = []
     if root.is_symlink() or not root.is_dir():
         raise ValueError(f'Expected a real directory: {root}')
-    for path in root.rglob('*'):
-        if path.is_symlink() or not (path.is_file() or path.is_dir()):
-            raise ValueError(f'Unsupported portable entry: {path}')
-        if path.is_file():
-            if path.stat().st_size > 90 * 1024 * 1024:
+    directories = [root]
+    while directories:
+        for path in directories.pop().iterdir():
+            relative = path.relative_to(root)
+            if is_user_database(relative):
+                raise ValueError(f'Personal database in portable snapshot: {path}')
+            info = path.lstat()
+            if stat.S_ISDIR(info.st_mode):
+                directories.append(path)
+            elif not stat.S_ISREG(info.st_mode):
+                raise ValueError(f'Unsupported portable entry: {path}')
+            elif info.st_size > 90 * 1024 * 1024:
                 raise ValueError(f'Portable file exceeds 90 MiB: {path}')
-            result.append(path.relative_to(root).as_posix())
+            else:
+                result.append(relative.as_posix())
     return sorted(result)
 
 
@@ -42,11 +55,15 @@ def apply(source, manifest, target):
     names = scan(source)
     previous = json.loads(manifest.read_text()) if manifest.exists() else []
     for name in set(previous) - set(names):
+        if is_user_database(PurePosixPath(name)):
+            continue
         path = destination(name, target)
         if path.is_file():
             path.unlink()
     for name in names:
         path = destination(name, target)
+        if path.is_dir():
+            raise ValueError(f'Portable file collides with a directory: {path}')
         path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source / name, path)
     (target.parent / 'next-manifest.json').write_text(json.dumps(names))

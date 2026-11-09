@@ -1,3 +1,4 @@
+import hashlib
 import os
 import shutil
 import subprocess
@@ -32,7 +33,7 @@ class MigrationTests(unittest.TestCase):
             exe = bin_dir / name
             exe.write_text(f'#!/bin/sh\n{body}\n')
             exe.chmod(0o700)
-        self.env = dict(os.environ, HOME=temp, PATH=f'{bin_dir}:{os.environ["PATH"]}',
+        self.env = dict(HOME=temp, PATH=f'{bin_dir}:{os.environ["PATH"]}',
                         XDG_DATA_HOME=f'{temp}/data', XDG_CONFIG_HOME=f'{temp}/config',
                         XDG_STATE_HOME=f'{temp}/state', GIT_CONFIG_NOSYSTEM='1')
         self.rime = self.root / 'data/fcitx5/rime'
@@ -63,6 +64,27 @@ class MigrationTests(unittest.TestCase):
         self.assertIn('files/fcitx5-config/conf/notifications.conf', names)
         self.assertNotIn('files/rime/lua/.gitignore', names)
         self.assertFalse((self.repo / 'files/rime/wanxiang.userdb').exists())
+
+    def test_portable_snapshot_cannot_replace_personal_data(self):
+        portable = self.root / 'portable'
+        target = self.root / 'data'
+        directory = target / 'data/rime/filter.lua'
+        directory.mkdir(parents=True)
+        personal = directory / 'filter.lua'
+        personal.write_text('unmanaged')
+        (portable / 'rime').mkdir(parents=True)
+        (portable / 'rime/filter.lua').write_text('managed')
+        result = self.command('python3', 'managed-files.py', 'apply', portable,
+                              self.root / 'manifest', target, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(personal.read_text(), 'unmanaged')
+
+        learned = portable / 'rime/wanxiang.userdb/CURRENT'
+        learned.parent.mkdir()
+        learned.write_text('foreign database')
+        result = self.command('python3', 'managed-files.py', 'check', portable, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Personal database in portable snapshot', result.stderr)
 
     def test_restore_replaces_live_data_but_preserves_identity(self):
         identity = self.rime / 'installation.yaml'
@@ -98,3 +120,23 @@ class MigrationTests(unittest.TestCase):
                 result = self.command('python3', 'validate-backup.py', archive, check=False)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn('Unsafe archive entry', result.stderr)
+
+    def test_restore_rejects_archive_without_two_zero_blocks(self):
+        tar_path = self.root / 'incomplete.tar'
+        archive = self.root / 'incomplete.tar.zst'
+        with tarfile.open(tar_path, 'w') as tar:
+            for name in ('data', 'data/rime', 'config'):
+                entry = tarfile.TarInfo(name)
+                entry.type = tarfile.DIRTYPE
+                tar.addfile(entry)
+        full_tar = tar_path.read_bytes()
+        for zero_blocks in (0, 1):
+            with self.subTest(zero_blocks=zero_blocks):
+                tar_path.write_bytes(full_tar[:(3 + zero_blocks) * tarfile.BLOCKSIZE])
+                self.command('zstd', '-qf', tar_path, '-o', archive)
+                digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+                archive.with_suffix('.zst.sha256').write_text(f'{digest}  {archive.name}\n')
+                result = self.command('./rime.sh', 'restore', archive, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Incomplete tar end marker', result.stderr)
+                self.assertEqual(self.prefs.read_text(), 'preferences')

@@ -17,6 +17,8 @@ Install verifies the language model, stops an existing Fcitx5 process, makes a f
 
 Portable files include Rime schemas, dictionaries, Lua, `*.custom.yaml`, Fcitx5 preferences and themes. Git excludes generated build/sync/user databases, the model, installation identity, runtime Lua statistics and generated keyboard-layout catalogs. Notification preferences are included. Previously installed portable files removed from Git are removed on the next install; unrelated files and personal databases are retained. Unknown files from before this tool's first install are deliberately not deleted.
 
+Install rejects unreadable snapshots, snapshots containing Rime user databases, and managed file paths that collide with destination directories.
+
 ## Capture and publish
 
 ```sh
@@ -44,7 +46,7 @@ No cron jobs or background sync. Run these commands explicitly; do not run migra
 ./rime.sh restore /path/to/full-YYYYMMDD-HHMMSS-ID.tar.zst
 ```
 
-Backups live in `${XDG_STATE_HOME:-~/.local/state}/rime-config/backups`. Copy **both** the `.tar.zst` archive and `.sha256` file off-machine. They include the complete Fcitx5 data/config trees, personal learning databases and language model; they are not put in Git. Restore verifies the checksum and rejects traversal, links and special archive entries, backs up the destination, replaces its full trees, preserves its installation identity and rebuilds Rime. Full restore intentionally removes destination files not in the archive. Archives are private but **not encrypted**. Checksums detect corruption, not malicious replacement; restore only trusted backups. Backups containing symlinks/special files are rejected rather than claiming they are portable.
+Backups live in `${XDG_STATE_HOME:-~/.local/state}/rime-config/backups`. Copy **both** the `.tar.zst` archive and `.sha256` file off-machine. They include the complete Fcitx5 data/config trees, personal learning databases and language model; they are not put in Git. Restore verifies the checksum and tar end marker and rejects traversal, links and special archive entries. It then backs up the destination, replaces its full trees, preserves its installation identity and rebuilds Rime. Full restore intentionally removes destination files not in the archive. Archives are private but **not encrypted**. Checksums detect corruption, not malicious replacement; restore only trusted backups. Backups containing symlinks/special files are rejected rather than claiming they are portable.
 
 ## Model availability
 
