@@ -1,0 +1,14 @@
+*.gram
+*.userdb*
+*.tar*
+*.sha256
+.capture.*/
+files/rime/build/
+files/rime/sync/
+files/rime/installation.yaml
+files/rime/user.yaml
+files/rime/lua/sequence/
+files/rime/lua/stats/
+files/fcitx5-config/conf/cached_layouts
+__pycache__/
+.pytest_cache/
