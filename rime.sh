@@ -36,8 +36,18 @@ cleanup() {
     fi
     [[ -z $work ]] || rm -rf -- "$work"
     if ((restart)) && ! pgrep -u "$(id -u)" -x fcitx5 >/dev/null; then
-        fcitx5 -d || status=1
-        sleep 1
+        # shortcut: KDE Wayland 上浏览器经 kwin 的 zwp_input_method 特权连接输入,只有 kwin 拉起的 fcitx5 才有该连接;手动 fcitx5 -d 或手动 launcher 都不行,需 --replace 重启 kwin 让它重新拉起
+        if [[ -n ${WAYLAND_DISPLAY:-} ]] && command -v kwin_wayland_wrapper >/dev/null; then
+            setsid kwin_wayland_wrapper --replace >/dev/null 2>&1 < /dev/null &
+            local i
+            for ((i = 0; i < 15; i++)); do
+                pgrep -u "$(id -u)" -x fcitx5 >/dev/null && break
+                sleep 1
+            done
+        else
+            fcitx5 -d || status=1
+            sleep 1
+        fi
         pgrep -u "$(id -u)" -x fcitx5 >/dev/null || status=1
     fi
     exit "$status"
