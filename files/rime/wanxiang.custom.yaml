@@ -148,9 +148,6 @@ patch:
   - accept: Control+Shift+E
     toggle: emoji
     when: always
-  - accept: Control+Shift+1
-    toggle: s2t
-    when: has_menu
   - accept: Control+Shift+exclam
     toggle: s2t
     when: has_menu
