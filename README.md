@@ -2,6 +2,8 @@
 
 Linux configuration snapshot, install, full backup/restore and explicit Git sync. Personal dictionaries and custom text can contain private information: keep the remote **private**. Nothing uploads automatically.
 
+The snapshot includes [Wanxiang Base v18.1.11](https://github.com/amzxyz/rime-wanxiang/releases/tag/v18.1.11) with local schema and keybinding overrides.
+
 To publish the initial snapshot, review the committed `files/` tree first. If no remote is configured, `gh repo create rime-config --private --source=. --remote=origin --push` creates a private GitHub repository and uploads it. Skip this step if you want to keep the snapshot local.
 
 ## New machine
